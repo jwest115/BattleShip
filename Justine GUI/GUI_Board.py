@@ -1,6 +1,7 @@
 from tkinter import *
 from PIL import Image, ImageTk
 from BattleShip.Tile_Coordinate import Tile_Coordinate
+from BattleShip.Ship_Data import Ship_Data
 
 
 class GUI_Board():
@@ -9,7 +10,9 @@ class GUI_Board():
         self.window.title("BattleShip")
         self.window.config(bg="black")
         self.window.geometry("1100x850")
-
+        # list of Ship_Data objects for each ship
+        # keep track of all the ship names, coordinates, and check to see if is currenlty placed in a valid position
+        self.ship_coordinates = []
         self.add_logo()
 
         # create canvas for ships to be placed
@@ -78,7 +81,7 @@ class GUI_Board():
         self.canvas.tag_bind("ship", "<ButtonPress-1>", self.on_ship_press)
         self.canvas.tag_bind("ship", "<ButtonRelease-1>", self.on_ship_release)
         self.canvas.tag_bind("ship", "<B1-Motion>", self.on_ship_motion)
-
+        
         self.window.mainloop()
 
     def add_logo(self):
@@ -92,8 +95,9 @@ class GUI_Board():
         self.path = "../images/"
         self.ship_images = ["aircraft carrier.png","battleship.png","cruiser.png","destroyer.png","submarine.png"]
         # sizing for the ship images
-        self.ship_sizes_x = [50, 80, 75, 45, 120]
-        self.ship_sizes_y = [230, 190, 155, 90, 145]
+        self.ship_dictionary = {103 : (30, 225), 104 : (35, 175), 105 : (25, 120), 106 : (35, 75), 107 : (35, 115)}
+        self.ship_sizes = [(30, 225), (35, 175), (25, 120), (35, 75), (35, 115)]
+#         self.ship_sizes_y = [230, 190, 155, 90, 145]
         # List of ships stored to access them when figuring out which one is being moved
         self.ship_names = []
 
@@ -103,9 +107,14 @@ class GUI_Board():
         for ship in self.ship_images:
             self.image_path = self.path+ship
             self.load = Image.open(self.image_path)
-            self.load = self.load.resize((self.ship_sizes_x[i], self.ship_sizes_y[i]), Image.ANTIALIAS)
+            self.load = self.load.resize((self.ship_sizes[i][0], self.ship_sizes[i][1]), Image.ANTIALIAS)
             self.ship_names.insert(i, ImageTk.PhotoImage(self.load))
+            # get the ship by splitting the image file name
+            file_name = self.ship_images[i].split(".")
+            name = file_name[0]
             self.ship = self.canvas.create_image(x, y, image=self.ship_names.__getitem__(i), tags="ship")
+            # add the ship data to the ship_coordinates list
+            self.ship_coordinates.append(Ship_Data(self.ship, name, 0, 0, 0, 0, False))
             
             if y == 500 and x == 100:
                 x += 130
@@ -125,7 +134,21 @@ class GUI_Board():
     def on_ship_release(self, event):
         coord = self.canvas.coords(self._drag_data["item"])
         print("x " + str(coord[0]) + "  y " + str(coord[1] - 100))
-        self.check_ship_coordinates(coord[0], coord[1] - 100, coord[1] + 100)
+        ship_dimensions = self.ship_dictionary[self._drag_data["item"]]
+        ship_height = ship_dimensions[1]
+        self.check_ship_coordinates(self._drag_data["item"], coord[0], coord[1] - (ship_height / 2), coord[1] + (ship_height / 2))
+        # make sure all ships are in valid positions then let the game continue
+        count = 0
+        for ship in self.ship_coordinates:
+            print(ship.valid_position)
+            if ship.valid_position == True:
+                count += 1
+            else:
+                count = 0
+        if count == 5:
+            print("All ships are valid, continue!")
+        else:
+            print("Please drag all ships to a valid position")
         self._drag_data["item"] = None
         self._drag_data["x"] = 0
         self._drag_data["y"] = 0
@@ -143,11 +166,13 @@ class GUI_Board():
         self._drag_data["y"] = event.y
         
     # takes in the x, top y, and bottom y coordinates of the dragged ship
-    def check_ship_coordinates(self, ship_x, ship_y, ship_y2):
+    def check_ship_coordinates(self, ship_id, ship_x, ship_y, ship_y2):
         head_x = None
         head_y = None
         tail_x = None
         tail_y = None
+        
+        print("ship id is " + str(ship_id))
         # go through list of grid coordinates to see if a ship is within bounds of the grid
         for coord in self.tile_coordinates:
             # check to see if ship's head is within bounds
@@ -161,11 +186,28 @@ class GUI_Board():
                         print("tail coordinate is " + str(coord2.gridx) + " " + str(coord2.gridy))
                         tail_x = coord.gridx
                         tail_y = coord.gridy
+        ship = None
+        for s in self.ship_coordinates:
+            if ship_id == s.id:
+                ship = s
         # if the ship was placed in a valid position on the grid board then return the top x and y coordinates and the bottom x and y coordinates (ex: 0,0 and 0,5)
+        # set all the parameters in the Ship_Data object
         if head_x != None and head_y != None and tail_x != None and tail_y != None:
-            return (head_x, head_y, tail_x, tail_y)
+            ship.top_x = head_x
+            ship.top_y = head_y
+            ship.bottom_x = tail_x
+            ship.bottom_y = tail_y
+            ship.valid_position = True
+#             return (head_x, head_y, tail_x, tail_y)
         # prompt user to find a valid position
+        # set all the parameters in the Ship_Data object
+        # make valid_position False, since the ship is not placed correctly
         else:
+            ship.top_x = head_x
+            ship.top_y = head_y
+            ship.bottom_x = tail_x
+            ship.bottom_y = tail_y
+            ship.valid_position = False
             print("Please drag the ship to a valid position")
         
                 
